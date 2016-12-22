@@ -1,5 +1,7 @@
 # -*- coding:utf-8 -*-
+from contextlib import contextmanager
 import time
+import sys
 import unittest
 
 
@@ -73,10 +75,12 @@ class TestAllIterableChecker(unittest.TestCase):
             (list(), True, True, False, False),
             (dict(), True, True, False, False),
             (set(), True, True, False, False),
+
             # __next__も持っているオブジェクト
             (iter(''), True, True, True, False),
             ((1 for x in range(0)), True, True, True, False),
             (fn(), True, True, True, False),
+
             # その他
             (fn, False, False, False, False),
         )
@@ -85,6 +89,17 @@ class TestAllIterableChecker(unittest.TestCase):
             obj, expects = item[0], item[1:]
             with self.subTest(obj=obj):
                 self.assertEqual(check(obj), expects)
+
+
+@contextmanager
+def waiting():
+    time.sleep(1)
+    for _ in range(3):
+        sys.stdout.write('.')
+        sys.stdout.flush()
+        time.sleep(1)
+    yield
+    time.sleep(1)
 
 
 def main():
@@ -106,6 +121,7 @@ def main():
         "iter('yes')",
     )
 
+    corrects, ans = 0, ''
     for i, raw in enumerate(items, 1):
         Q = (
             "[Q{:02d}]\n"
@@ -113,7 +129,7 @@ def main():
             "hasattr(obj, '__iter__'), isinstance(obj, collections.Iterable), hasattr(obj, '__next__')\n"
             "これらの真偽は? > "
         )
-        xs = input(Q.format(i, raw))
+        xs = input(Q.format(i, raw))  # Python3はraw_inputが無い(!)
 
         try:
             inputs = eval(xs)
@@ -123,20 +139,18 @@ def main():
             inputs = tuple(bool(x) for x in inputs)
         except:
             print('\033[2J\033[G\n構文エラー: 終了します')
-            break
-        else:
-            time.sleep(0.3)
-            print('\033[2J\033[G')
+            return
 
         result = check(eval(raw))[:-1]
-        if inputs == result:
-            time.sleep(0.3)
-            print('\n*****正解!*****')
-            time.sleep(0.3)
-        else:
-            time.sleep(0.3)
-            print('\n*****残念... {} != {}'.format(inputs, result))
-            time.sleep(0.3)
+
+        with waiting():
+            if inputs == result:
+                ans = '\n*****正解!*****\n'
+                corrects += 1
+            else:
+                ans = '\n*****残念!***** {} != {}\n'.format(inputs, result)
+            print('\033[2J\033[G{}'.format(ans))
+    print('\033[2J\033[G*****結果: {}問正解しました!*****'.format(corrects))
 
 
 if __name__ == '__main__':
